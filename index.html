@@ -539,6 +539,8 @@ $("#saveBtn").onclick=async()=>{
 };
 
 (async()=>{ try{ const old=LS.get("recent",[]); for(const r of old) await logAdd({id:"old-"+r.at, nome:r.name, at:r.at, sentAt:r.at, offline:false}); if(old.length) localStorage.removeItem("scan_recent"); }catch(e){} refresh(); })();
+function updBtn(){ const b=$("#saveBtn"); if(saving) return; b.textContent = !S.pages.length ? "Escaneie um documento para enviar" : (navigator.onLine===false ? "📥 Guardar no celular (envia sozinho depois)" : "Enviar documento"); }
+setInterval(updBtn,800); window.addEventListener("online",updBtn); window.addEventListener("offline",updBtn);
 renderPages();
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
