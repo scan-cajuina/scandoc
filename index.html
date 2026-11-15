@@ -124,7 +124,7 @@
       <label class="f" for="who">Seu nome</label>
       <input type="text" id="who" placeholder="Ex.: João Silva" autocomplete="name">
       <div class="preview" id="namePrev"></div>
-      <button class="btn" id="saveBtn" disabled>Enviar documento</button>
+      <button class="btn" id="saveBtn">Enviar documento</button>
       <div class="msg" id="msg"></div>
     </div>
 
@@ -417,7 +417,7 @@ function renderPages(){
   $("#pagesTitle").textContent=S.pages.length===1?"1 página":S.pages.length+" páginas";
   $("#camLabel").textContent=S.pages.length?"Adicionar página "+(S.pages.length+1):"Escanear documento";
   $("#pagesHint").textContent = (S.pages.length===1 ? "O documento tem mais folhas? Toque em Próxima página. Se for só esta, escolha o tipo abaixo e envie." : "As "+S.pages.length+" folhas vão juntas num PDF só. Terminou? Escolha o tipo abaixo e envie.") + " O recorte é automático; se alguma folha ficar torta, toque no ✎ da miniatura.";
-  $("#saveBtn").disabled=!S.pages.length;
+  $("#saveBtn").disabled=false;
   if(S.pages.length) hideMsg();
 }
 
@@ -523,9 +523,9 @@ function somEnvio(){ try{
 }catch(e){} }
 let saving=false;
 $("#saveBtn").onclick=async()=>{
-  if(saving||!S.pages.length) return;
-  if(!tipo){ showMsg("err","Escolha o tipo de documento: PT, APR, Checklist, DDS ou Outros."); return; }
-  if(!clean($("#who").value)){ showMsg("err","Preencha o seu nome antes de enviar."); $("#who").focus(); return; }
+  if(saving) return;
+  const falta=[]; if(!S.pages.length) falta.push("a foto do documento (toque na câmera)"); if(!tipo) falta.push("o tipo: PT, APR, Checklist, DDS ou Outros"); if(!clean($("#who").value)) falta.push("o seu nome");
+  if(falta.length){ showMsg("err","Para enviar, falta: "+falta.join("; ")+"."); setTimeout(()=>$("#msg").scrollIntoView({behavior:"smooth",block:"center"}),60); return; }
   saving=true; $("#saveBtn").disabled=true; hideMsg(); somEnvio();
   const name=fileName(), t=tipo;
   try{
@@ -548,12 +548,10 @@ $("#saveBtn").onclick=async()=>{
     setTimeout(()=>$("#msg").scrollIntoView({behavior:"smooth",block:"center"}),60);
   }catch(e){
     showMsg("err","Não foi possível salvar o documento: "+esc((e&&e.message)||e));
-  }finally{ busy(false); saving=false; $("#saveBtn").disabled=!S.pages.length; }
+  }finally{ busy(false); saving=false; $("#saveBtn").disabled=false; }
 };
 
 (async()=>{ try{ const old=LS.get("recent",[]); for(const r of old) await logAdd({id:"old-"+r.at, nome:r.name, at:r.at, sentAt:r.at, offline:false}); if(old.length) localStorage.removeItem("scan_recent"); }catch(e){} refresh(); })();
-function updBtn(){ const b=$("#saveBtn"); if(saving) return; b.textContent = !S.pages.length ? "Escaneie um documento para enviar" : (navigator.onLine===false ? "📥 Guardar no celular (envia sozinho depois)" : "Enviar documento"); }
-setInterval(updBtn,800); window.addEventListener("online",updBtn); window.addEventListener("offline",updBtn);
 renderPages();
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
