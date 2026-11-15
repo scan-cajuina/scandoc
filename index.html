@@ -60,6 +60,11 @@
   .msg.show{display:block}
   .msg.ok{background:rgba(6,118,71,.1);border:1px solid rgba(6,118,71,.35)}
   .msg.info{background:rgba(232,115,12,.08);border:1px solid rgba(232,115,12,.35)}
+  .netchip{margin-left:auto;font-size:12px;font-weight:600;background:rgba(255,255,255,.22);padding:5px 10px;border-radius:999px;white-space:nowrap}
+  .fila ul{margin:6px 0 0;padding-left:18px;font-size:12.5px}
+  .fila li span{opacity:.75}
+  .fila.ok{background:#ecfdf3;border-color:#a6e3c0;color:#05603a;position:relative;padding-right:56px}
+  .fila .fx{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:1px solid #a6e3c0;background:#fff;color:#05603a;border-radius:8px;padding:4px 8px;font-weight:600;cursor:pointer}
   .fila{background:#fff7e6;border:1px solid #f0c36d;color:#7a4b00;border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px;display:none}
   .msg.err{background:rgba(180,35,24,.08);border:1px solid rgba(180,35,24,.35)}
   .recent li{list-style:none;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
@@ -84,6 +89,7 @@
   <header>
     <div class="logo"><svg viewBox="60 60 392 392" width="30" height="30"><g fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="22" stroke-linecap="round"><path d="M86 150V112a26 26 0 0 1 26-26h38"/><path d="M362 86h38a26 26 0 0 1 26 26v38"/><path d="M426 362v38a26 26 0 0 1-26 26h-38"/><path d="M150 426h-38a26 26 0 0 1-26-26v-38"/></g><g fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round"><path d="M128 206H318a42 42 0 1 0-42-42"/><path d="M128 266H366a48 48 0 1 1-48 48"/><path d="M168 326H250a34 34 0 1 1-34 34"/></g></svg></div>
     <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive</small></div>
+    <div class="netchip" id="netChip">✅ Pronto</div>
   </header>
 
   <section id="home">
@@ -436,42 +442,71 @@ function hideMsg(){ $("#msg").className="msg"; }
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbxN8gZ7ao6p8Gu0CW9M-T9Lv7sDyKbESxeERpjCdS2p_HnXMaoijpxtgs4loJrnPviriA/exec";
 
-/* ---------- fila offline (IndexedDB) ---------- */
-function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("scandoc",1);
-  r.onupgradeneeded=()=>r.result.createObjectStore("fila",{keyPath:"id"});
+/* ---------- fila offline + histórico (IndexedDB, compartilhado com o service worker) ---------- */
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("scandoc",2);
+  r.onupgradeneeded=()=>{ const d=r.result;
+    if(!d.objectStoreNames.contains("fila")) d.createObjectStore("fila",{keyPath:"id"});
+    if(!d.objectStoreNames.contains("log")) d.createObjectStore("log",{keyPath:"id"}); };
   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
-async function filaAdd(item){ const db=await idb(); await new Promise((res,rej)=>{ const tx=db.transaction("fila","readwrite"); tx.objectStore("fila").put(item); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
-async function filaAll(){ const db=await idb(); return new Promise((res,rej)=>{ const q=db.transaction("fila").objectStore("fila").getAll(); q.onsuccess=()=>res(q.result||[]); q.onerror=()=>rej(q.error); }); }
-async function filaDel(id){ const db=await idb(); return new Promise(res=>{ const tx=db.transaction("fila","readwrite"); tx.objectStore("fila").delete(id); tx.oncomplete=res; tx.onerror=res; }); }
+async function st(name,mode,fn){ const db=await idb(); return new Promise((res,rej)=>{ const tx=db.transaction(name,mode); const q=fn(tx.objectStore(name)); let out;
+  if(q) q.onsuccess=()=>{ out=q.result; }; tx.oncomplete=()=>res(out); tx.onerror=()=>rej(tx.error); }); }
+const filaAdd=it=>st("fila","readwrite",s=>{ s.put(it); });
+const filaAll=()=>st("fila","readonly",s=>s.getAll()).then(x=>(x||[]).sort((a,b)=>a.at-b.at));
+const filaDel=id=>st("fila","readwrite",s=>{ s.delete(id); });
+const logAdd=it=>st("log","readwrite",s=>{ s.put(it); });
+const logAll=()=>st("log","readonly",s=>s.getAll()).then(x=>(x||[]).sort((a,b)=>b.sentAt-a.sentAt));
 
-let flushing=false;
+function hhmm(t){ const d=new Date(t), h=new Date(); const hm=pad(d.getHours())+"h"+pad(d.getMinutes());
+  return d.toDateString()===h.toDateString()? "hoje às "+hm : d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" às "+hm; }
+
+let flushing=false, prog=null;
 async function flush(){
   if(flushing) return 0; flushing=true; let sent=0;
   try{
     const items=await filaAll();
-    for(const it of items){
+    for(let i=0;i<items.length;i++){
+      const it=items[i]; prog={k:items.length-i}; await refresh();
       let j=null;
       try{
         const r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({pdf:it.pdf,nome:it.nome,tipo:it.tipo})});
         j=await r.json();
       }catch(e){ break; }
       if(j && j.ok){
+        const now=Date.now();
+        await logAdd({id:it.id, nome:it.nome, tipo:it.tipo, at:it.at, sentAt:now, offline:(now-it.at)>60000});
         await filaDel(it.id); sent++;
-        const rec=LS.get("recent",[]); rec.unshift({name:it.nome, at:Date.now()}); LS.set("recent",rec.slice(0,15));
       } else break;
     }
   }catch(e){}
-  flushing=false; await updFila(); renderRecent();
+  flushing=false; prog=null; await refresh();
   return sent;
 }
-async function updFila(){
-  let n=0; try{ n=(await filaAll()).length; }catch(e){}
-  const b=$("#filaBox");
-  if(!n){ b.style.display="none"; return; }
-  b.style.display="block";
-  b.innerHTML=`📥 <b>${n} documento${n>1?"s":""} aguardando internet.</b> ${n>1?"Serão enviados":"Será enviado"} automaticamente quando o sinal voltar.`;
-}
 function pedirSync(){ try{ navigator.serviceWorker && navigator.serviceWorker.ready.then(r=>r.sync && r.sync.register("envio")).catch(()=>{}); }catch(e){} }
+
+/* ---------- avisos: chip no topo, quadro da fila e histórico ---------- */
+async function refresh(){
+  let fila=[], log=[]; try{ fila=await filaAll(); log=await logAll(); }catch(e){}
+  const n=fila.length, chip=$("#netChip"), box=$("#filaBox");
+  if(prog) chip.textContent=`⏫ Enviando… falta${prog.k>1?"m":""} ${prog.k}`;
+  else if(n) chip.textContent=`📥 ${n} na fila`;
+  else if(log.length) chip.textContent=`✅ Tudo enviado · ${hhmm(log[0].sentAt).replace("hoje às ","")}`;
+  else chip.textContent=navigator.onLine===false?"📴 Sem internet":"✅ Pronto";
+  if(n){
+    box.className="fila"; box.style.display="block";
+    box.innerHTML=`📥 <b>${n} documento${n>1?"s":""} na fila${prog?" — enviando agora…":", aguardando internet."}</b> ${prog?"":(n>1?"Serão enviados":"Será enviado")+" automaticamente quando o sinal voltar."}<ul>${fila.map(f=>`<li>${esc(f.nome)}<span> · escaneado ${hhmm(f.at)}</span></li>`).join("")}</ul>`;
+  } else {
+    const ack=LS.get("ack",0), novos=log.filter(l=>l.offline && l.sentAt>ack && Date.now()-l.sentAt<864e5);
+    if(novos.length){
+      box.className="fila ok"; box.style.display="block";
+      box.innerHTML=`✅ <b>${novos.length} documento${novos.length>1?"s":""} guardado${novos.length>1?"s":""} sem internet ${novos.length>1?"foram enviados":"foi enviado"}</b> — último ${hhmm(novos[0].sentAt)}.<button class="fx" id="ackBtn" aria-label="Ok">OK</button>`;
+      $("#ackBtn").onclick=()=>{ LS.set("ack",Date.now()); refresh(); };
+    } else box.style.display="none";
+  }
+  const ul=$("#recent"); ul.innerHTML="";
+  log.slice(0,15).forEach(r=>{ const li=document.createElement("li");
+    li.innerHTML=`📄 ${esc(r.nome)}<span>Enviado ${hhmm(r.sentAt)}${r.offline?" · estava na fila offline":""}</span>`; ul.appendChild(li); });
+  $("#recentCard").style.display=log.length?"block":"none";
+}
 
 let saving=false;
 $("#saveBtn").onclick=async()=>{
@@ -492,7 +527,7 @@ $("#saveBtn").onclick=async()=>{
     pedirSync();
     let ok=false;
     if(navigator.onLine!==false){ await flush(); ok=!(await filaAll()).some(x=>x.id===id); }
-    await updFila(); renderRecent();
+    await refresh();
     const novo=`<button class="btn" id="newDocBtn">📷 Escanear novo documento</button>`;
     if(ok) showMsg("ok",`✅ Enviado para a pasta <b>${esc(t)}</b>: <b>${esc(name)}</b>${novo}`);
     else showMsg("info",`📥 Sem internet agora. O documento <b>${esc(name)}</b> ficou guardado no celular e será enviado <b>automaticamente</b> quando o sinal voltar.${novo}`);
@@ -502,21 +537,18 @@ $("#saveBtn").onclick=async()=>{
     showMsg("err","Não foi possível salvar o documento: "+esc((e&&e.message)||e));
   }finally{ busy(false); saving=false; $("#saveBtn").disabled=!S.pages.length; }
 };
-function renderRecent(){
-  const rec=LS.get("recent",[]); const ul=$("#recent"); ul.innerHTML="";
-  rec.forEach(r=>{ const li=document.createElement("li"); const d=new Date(r.at);
-    li.innerHTML=`📄 ${esc(r.name)}<span>${d.toLocaleDateString("pt-BR")} ${pad(d.getHours())}:${pad(d.getMinutes())}</span>`;
-    ul.appendChild(li); });
-  $("#recentCard").style.display=rec.length?"block":"none";
-}
-renderRecent(); renderPages(); updFila();
+
+(async()=>{ try{ const old=LS.get("recent",[]); for(const r of old) await logAdd({id:"old-"+r.at, nome:r.name, at:r.at, sentAt:r.at, offline:false}); if(old.length) localStorage.removeItem("scan_recent"); }catch(e){} refresh(); })();
+renderPages();
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
-  navigator.serviceWorker.addEventListener("message",e=>{ if(e.data==="fila-atualizada"){ updFila(); renderRecent(); } });
+  navigator.serviceWorker.addEventListener("message",e=>{ if(e.data==="fila-atualizada") refresh(); });
 }
 window.addEventListener("online",()=>flush());
+window.addEventListener("offline",()=>refresh());
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") flush(); });
-setInterval(()=>{ if(navigator.onLine!==false) flush(); },60000);
+setInterval(()=>{ if(navigator.onLine!==false) flush(); else refresh(); },30000);
+filaAll().then(f=>{ if(f.length) pedirSync(); });
 flush();
 })();
 </script>
