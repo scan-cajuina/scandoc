@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScanDoc Teams</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f5fbf">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ScanDoc Teams">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f3f5f7; --card:#fff; --ink:#16202a; --muted:#66727f; --line:#dde3e9;
+    --acc:#1f5fbf; --acc2:#2b74e0; --warn:#b54708; --err:#b42318; --ok:#067647;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1418; --card:#182028; --ink:#e8eef3; --muted:#93a1ad; --line:#2a3540; --acc:#4a8cf0; --acc2:#6aa2f5; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:16px 14px 40px}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  header .logo{width:44px;height:44px;border-radius:12px;background:var(--acc);display:grid;place-items:center;color:#fff}
+  header h1{font-size:19px;margin:0;font-weight:650}
+  header small{display:block;color:var(--muted);font-size:12.5px;font-weight:400}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  .shoot{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 0 6px}
+  .camBtn{width:132px;height:132px;border-radius:50%;border:none;background:var(--acc);color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 24px rgba(31,95,191,.35);transition:transform .1s}
+  .camBtn:active{transform:scale(.96)}
+  .camBtn svg{width:56px;height:56px}
+  .link{background:none;border:none;color:var(--acc);font:inherit;font-size:14.5px;cursor:pointer;padding:6px}
+  label.f{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 11px;font-size:13.5px;cursor:pointer}
+  .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  .preview{font-size:12.5px;color:var(--muted);margin-top:8px;word-break:break-all}
+  .preview b{color:var(--ink);font-weight:600}
+  .pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
+  .pg{position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#fff;aspect-ratio:.72}
+  .pg img{width:100%;height:100%;object-fit:contain;display:block}
+  .pg .n{position:absolute;left:5px;top:5px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;border-radius:6px;padding:1px 6px}
+  .pg .x{position:absolute;right:4px;top:4px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(180,35,24,.9);color:#fff;font-size:15px;line-height:26px;cursor:pointer}
+  .pg .ed{position:absolute;left:4px;bottom:4px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.65);color:#fff;font-size:16px;line-height:30px;cursor:pointer}
+  .addPg{border:2px dashed var(--line);border-radius:8px;display:grid;place-items:center;color:var(--muted);font-size:13px;cursor:pointer;aspect-ratio:.72;background:none}
+  .btn{width:100%;padding:14px;border-radius:12px;border:none;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer;margin-top:10px}
+  .btn.sec{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  h2{font-size:15px;margin:0 0 8px;font-weight:650}
+  .msg{border-radius:12px;padding:12px;font-size:14px;margin-top:10px;display:none}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(6,118,71,.1);border:1px solid rgba(6,118,71,.35)}
+  .msg.info{background:rgba(31,95,191,.08);border:1px solid rgba(31,95,191,.35)}
+  .fila{background:#fff7e6;border:1px solid #f0c36d;color:#7a4b00;border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px;display:none}
+  .msg.err{background:rgba(180,35,24,.08);border:1px solid rgba(180,35,24,.35)}
+  .recent li{list-style:none;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .recent li:last-child{border:none}
+  .recent ul{margin:0;padding:0}
+  .recent span{color:var(--muted);font-size:12px;display:block}
+  #editor{display:none}
+  .edBox{position:relative;background:#111;border-radius:14px;overflow:hidden;display:flex;justify-content:center;touch-action:none}
+  #ed{display:block;touch-action:none}
+  .tools{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .tools .chip{flex:1;text-align:center}
+  .hint{font-size:12.5px;color:var(--muted);margin:8px 2px 0}
+  .busy{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;place-items:center;z-index:9}
+  .busy.show{display:grid}
+  .busy div{background:var(--card);color:var(--ink);padding:18px 22px;border-radius:14px;font-size:15px;display:flex;gap:12px;align-items:center}
+  .spin{width:20px;height:20px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--acc);animation:s 0.8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="60 60 392 392" width="30" height="30"><g fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="22" stroke-linecap="round"><path d="M86 150V112a26 26 0 0 1 26-26h38"/><path d="M362 86h38a26 26 0 0 1 26 26v38"/><path d="M426 362v38a26 26 0 0 1-26 26h-38"/><path d="M150 426h-38a26 26 0 0 1-26-26v-38"/></g><path d="M248 214 L264 214 L276 410 L236 410 Z" fill="#fff"/><rect x="196" y="404" width="120" height="14" rx="7" fill="#fff"/><g transform="translate(256 200)" fill="#fff"><path d="M-9 0 C-12 -50 -6 -96 0 -118 C 8 -96 12 -50 9 0 Z"/><path d="M-9 0 C-12 -50 -6 -96 0 -118 C 8 -96 12 -50 9 0 Z" transform="rotate(120)"/><path d="M-9 0 C-12 -50 -6 -96 0 -118 C 8 -96 12 -50 9 0 Z" transform="rotate(240)"/><circle r="20"/></g></svg></div>
+    <div><h1>ScanDoc Teams</h1><small>Documentos HSE · foto → PDF → OneDrive Nordex</small></div>
+  </header>
+
+  <section id="home">
+    <div class="fila" id="filaBox"></div>
+    <div class="card">
+      <div class="shoot">
+        <button class="camBtn" id="camBtn" aria-label="Abrir câmera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <div id="camLabel" style="font-weight:600">Escanear documento</div>
+        <button class="link" id="galBtn">ou escolher foto da galeria</button>
+      </div>
+      <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="gal" accept="image/*" multiple hidden>
+    </div>
+
+    <div class="card" id="pagesCard" style="display:none">
+      <h2 id="pagesTitle">Páginas</h2>
+      <div class="pages" id="pages"></div>
+      <p class="hint" id="pagesHint"></p>
+      <div class="row">
+        <button class="btn sec" id="clearBtn">🗑 Descartar tudo</button>
+        <button class="btn" id="morePgBtn">📷 Próxima página</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tipo de documento</h2>
+      <div class="chips" id="chips"></div>
+      <label class="f" for="title">Descrição (opcional)</label>
+      <input type="text" id="title" placeholder="Ex.: WTG 045 - troca de rolamento" autocomplete="off">
+      <label class="f" for="who">Seu nome</label>
+      <input type="text" id="who" placeholder="Ex.: João Silva" autocomplete="name">
+      <div class="preview" id="namePrev"></div>
+      <button class="btn" id="saveBtn" disabled>Enviar documento</button>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <div class="card recent" id="recentCard" style="display:none">
+      <h2>Enviados por você neste celular</h2>
+      <ul id="recent"></ul>
+    </div>
+  </section>
+
+  <section id="editor">
+    <div class="card">
+      <h2>Ajustar recorte</h2>
+      <div class="edBox" id="edBox"><canvas id="ed"></canvas></div>
+      <p class="hint">Arraste os 4 cantos verdes até as pontas da folha. O app corrige a perspectiva.</p>
+      <div class="tools" id="filters">
+        <button class="chip" data-f="doc">Documento</button>
+        <button class="chip" data-f="bw">Preto e branco</button>
+        <button class="chip" data-f="color">Colorido</button>
+        <button class="chip" data-f="orig">Original</button>
+      </div>
+      <div class="row">
+        <button class="btn sec" id="rotBtn">↻ Girar</button>
+        <button class="btn sec" id="fullBtn">⤢ Foto inteira</button>
+      </div>
+      <div class="row">
+        <button class="btn sec" id="cancelBtn">Descartar</button>
+        <button class="btn" id="okBtn">Salvar ajuste</button>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="busy" id="busy"><div><span class="spin"></span><span id="busyTxt">Processando…</span></div></div>
+
+<script>
+(function(){
+const $ = s => document.querySelector(s);
+const LS = {
+  get(k,d){ try{ const v = localStorage.getItem("scan_"+k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
+  set(k,v){ try{ localStorage.setItem("scan_"+k, JSON.stringify(v)); }catch(e){} }
+};
+const S = { pages: [], src: null, corners: null, filter: LS.get("filter2","color") };
+
+const CHIPS = ["PT","APR","Checklist","DDS","Outros"];
+let tipo = "";
+const chipsEl = $("#chips");
+CHIPS.forEach(c=>{
+  const b=document.createElement("button"); b.className="chip"; b.textContent=c;
+  b.onclick=()=>{ tipo=c; updName(); };
+  chipsEl.appendChild(b);
+});
+$("#who").value = LS.get("who","");
+$("#title").addEventListener("input", updName);
+$("#who").addEventListener("input", ()=>{ LS.set("who", $("#who").value.trim()); updName(); });
+function pad(n){return String(n).padStart(2,"0");}
+function clean(s){ return s.replace(/[\\/:*?"<>|\u0000-\u001f]/g,"").replace(/\s+/g," ").trim(); }
+function fileName(){
+  const d=new Date();
+  const t = clean($("#title").value);
+  const w = clean($("#who").value);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}h${pad(d.getMinutes())} - ${tipo||"TIPO"}${t?" - "+t:""}${w?" - "+w:""}.pdf`;
+}
+function updName(){
+  [...chipsEl.children].forEach(b=>b.classList.toggle("on", b.textContent===tipo));
+  $("#namePrev").innerHTML = `Pasta <b>${esc(tipo||"(escolha o tipo)")}</b> · arquivo <b>${esc(fileName())}</b>`;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+updName(); setInterval(updName, 30000);
+
+$("#camBtn").onclick=()=>$("#cam").click();
+$("#galBtn").onclick=()=>$("#gal").click();
+$("#morePgBtn").onclick=()=>$("#cam").click();
+let clearArm=0;
+$("#clearBtn").onclick=()=>{ const b=$("#clearBtn");
+  if(Date.now()-clearArm<3000){ S.pages=[]; clearArm=0; b.textContent="🗑 Descartar tudo"; renderPages(); hideMsg(); window.scrollTo(0,0); return; }
+  clearArm=Date.now(); b.textContent="Toque de novo p/ confirmar";
+  setTimeout(()=>{ b.textContent="🗑 Descartar tudo"; },3000); };
+$("#cam").onchange=e=>{ const f=e.target.files[0]; e.target.value=""; if(f) openImage(f); };
+const queue=[];
+$("#gal").onchange=e=>{ queue.push(...e.target.files); e.target.value=""; next(); };
+function next(){ const f=queue.shift(); if(f) openImage(f); }
+
+function busy(on, txt){ $("#busy").classList.toggle("show",on); if(txt) $("#busyTxt").textContent=txt; }
+
+function openImage(file){
+  busy(true,"Abrindo foto…");
+  const url=URL.createObjectURL(file);
+  const img=new Image();
+  img.onload=()=>{
+    const MAX=2200, k=Math.min(1, MAX/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement("canvas");
+    c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);
+    S.src=c; S.corners=detectCorners(c) || [[0,0],[c.width,0],[c.width,c.height],[0,c.height]];
+    S.editIdx=-1; busy(false); $("#okBtn").click();
+  };
+  img.onerror=()=>{ busy(false); showMsg("err","Não consegui abrir essa imagem."); };
+  img.src=url;
+}
+function defCorners(c){ const mx=c.width*.06,my=c.height*.06; return [[mx,my],[c.width-mx,my],[c.width-mx,c.height-my],[mx,c.height-my]]; }
+
+function detectCorners(c){
+  try{
+    const sw=200, k=sw/Math.max(c.width,c.height);
+    const w=Math.max(20,Math.round(c.width*k)), h=Math.max(20,Math.round(c.height*k));
+    const t=document.createElement("canvas"); t.width=w; t.height=h;
+    const x=t.getContext("2d"); x.drawImage(c,0,0,w,h);
+    const d=x.getImageData(0,0,w,h).data, g=new Float32Array(w*h);
+    const hist=new Array(256).fill(0);
+    for(let i=0;i<w*h;i++){ const v=(d[i*4]*.3+d[i*4+1]*.59+d[i*4+2]*.11)|0; g[i]=v; hist[v]++; }
+    let sum=0; for(let i=0;i<256;i++) sum+=i*hist[i];
+    let sB=0,wB=0,best=0,th=128;
+    for(let i=0;i<256;i++){ wB+=hist[i]; if(!wB) continue; const wF=w*h-wB; if(!wF) break; sB+=i*hist[i];
+      const mB=sB/wB, mF=(sum-sB)/wF, v=wB*wF*(mB-mF)*(mB-mF); if(v>best){best=v;th=i;} }
+    const mask=new Uint8Array(w*h); for(let i=0;i<w*h;i++) mask[i]=g[i]>th?1:0;
+    const lab=new Int32Array(w*h); let bestLab=0,bestSize=0,cur=0;
+    const st=[];
+    for(let i=0;i<w*h;i++){ if(!mask[i]||lab[i]) continue; cur++; let size=0; st.push(i); lab[i]=cur;
+      while(st.length){ const p=st.pop(); size++; const px=p%w, py=(p/w)|0;
+        if(px>0&&mask[p-1]&&!lab[p-1]){lab[p-1]=cur;st.push(p-1);}
+        if(px<w-1&&mask[p+1]&&!lab[p+1]){lab[p+1]=cur;st.push(p+1);}
+        if(py>0&&mask[p-w]&&!lab[p-w]){lab[p-w]=cur;st.push(p-w);}
+        if(py<h-1&&mask[p+w]&&!lab[p+w]){lab[p+w]=cur;st.push(p+w);} }
+      if(size>bestSize){bestSize=size;bestLab=cur;} }
+    const frac=bestSize/(w*h);
+    if(frac<0.15 || frac>0.97) return null;
+    let tl=[0,0,1e9],tr=[0,0,-1e9],br=[0,0,-1e9],bl=[0,0,-1e9];
+    for(let i=0;i<w*h;i++){ if(lab[i]!==bestLab) continue; const px=i%w, py=(i/w)|0;
+      if(px+py<tl[2]) tl=[px,py,px+py]; if(px-py>tr[2]) tr=[px,py,px-py];
+      if(px+py>br[2]) br=[px,py,px+py]; if(py-px>bl[2]) bl=[px,py,py-px]; }
+    const q=[tl,tr,br,bl].map(p=>[(p[0]+.5)/k,(p[1]+.5)/k]);
+    const area=Math.abs(polyArea(q))/(c.width*c.height);
+    if(area<0.12) return null;
+    return q;
+  }catch(e){ return null; }
+}
+function polyArea(q){ let a=0; for(let i=0;i<4;i++){ const p=q[i],n=q[(i+1)%4]; a+=p[0]*n[1]-n[0]*p[1]; } return a/2; }
+
+const ed=$("#ed"), edx=ed.getContext("2d");
+let view={k:1}, drag=-1;
+function showEditor(){
+  $("#home").style.display="none"; $("#editor").style.display="block";
+  [...$("#filters").children].forEach(b=>b.classList.toggle("on", b.dataset.f===S.filter));
+  window.scrollTo(0,0); requestAnimationFrame(drawEd);
+}
+function showHome(){ $("#editor").style.display="none"; $("#home").style.display="block"; }
+function drawEd(){
+  if(!S.src) return;
+  const box=$("#edBox"), W=box.clientWidth, H=Math.max(260, Math.min(window.innerHeight*0.6, 620));
+  const k=Math.min(W/S.src.width, H/S.src.height), dpr=window.devicePixelRatio||1;
+  const cw=Math.round(S.src.width*k), ch=Math.round(S.src.height*k);
+  ed.style.width=cw+"px"; ed.style.height=ch+"px"; ed.width=cw*dpr; ed.height=ch*dpr;
+  view.k=k;
+  edx.setTransform(dpr,0,0,dpr,0,0);
+  edx.drawImage(S.src,0,0,cw,ch);
+  const p=S.corners.map(c=>[c[0]*k,c[1]*k]);
+  edx.fillStyle="rgba(0,0,0,.45)";
+  edx.beginPath(); edx.rect(0,0,cw,ch); edx.moveTo(p[0][0],p[0][1]); for(let i=3;i>=0;i--) edx.lineTo(p[i][0],p[i][1]); edx.closePath(); edx.fill("evenodd");
+  edx.strokeStyle="#4aa3ff"; edx.lineWidth=2.5;
+  edx.beginPath(); p.forEach((q,i)=>i?edx.lineTo(q[0],q[1]):edx.moveTo(q[0],q[1])); edx.closePath(); edx.stroke();
+  p.forEach((q,i)=>{ edx.beginPath(); edx.arc(q[0],q[1], drag===i?16:12, 0, Math.PI*2); edx.fillStyle="rgba(74,163,255,.35)"; edx.fill(); edx.lineWidth=3; edx.stroke(); });
+}
+function evPt(e){ const r=ed.getBoundingClientRect(); return [(e.clientX-r.left)/view.k,(e.clientY-r.top)/view.k]; }
+ed.addEventListener("pointerdown",e=>{
+  const p=evPt(e); let bi=-1,bd=1e9;
+  S.corners.forEach((c,i)=>{ const d=Math.hypot(c[0]-p[0],c[1]-p[1])*view.k; if(d<bd){bd=d;bi=i;} });
+  if(bd<48){ drag=bi; ed.setPointerCapture(e.pointerId); e.preventDefault(); drawEd(); }
+});
+ed.addEventListener("pointermove",e=>{
+  if(drag<0) return; const p=evPt(e);
+  S.corners[drag]=[Math.max(0,Math.min(S.src.width,p[0])), Math.max(0,Math.min(S.src.height,p[1]))];
+  drawEd(); e.preventDefault();
+});
+["pointerup","pointercancel"].forEach(t=>ed.addEventListener(t,()=>{ drag=-1; drawEd(); }));
+window.addEventListener("resize",()=>{ if($("#editor").style.display==="block") drawEd(); });
+
+$("#filters").onclick=e=>{ const f=e.target.dataset&&e.target.dataset.f; if(!f) return; S.filter=f; LS.set("filter2",f);
+  [...$("#filters").children].forEach(b=>b.classList.toggle("on", b.dataset.f===f)); };
+$("#rotBtn").onclick=()=>{
+  const s=S.src, c=document.createElement("canvas"); c.width=s.height; c.height=s.width;
+  const x=c.getContext("2d"); x.translate(c.width,0); x.rotate(Math.PI/2); x.drawImage(s,0,0);
+  const H=s.height; let q=S.corners.map(p=>[H-p[1],p[0]]);
+  q=[q[3],q[0],q[1],q[2]];
+  S.src=c; S.corners=q; drawEd();
+};
+$("#fullBtn").onclick=()=>{ const c=S.src; S.corners=[[0,0],[c.width,0],[c.width,c.height],[0,c.height]]; drawEd(); };
+$("#cancelBtn").onclick=()=>{ S.src=null; S.editIdx=-1; showHome(); next(); };
+$("#okBtn").onclick=()=>{
+  busy(true,"Tratando imagem…");
+  setTimeout(()=>{
+    try{
+      const warped=warp(S.src,S.corners);
+      const out=applyFilter(warped,S.filter);
+      const pg={canvas:out, filter:S.filter, thumb:out.toDataURL("image/jpeg",.6), src:S.src, corners:S.corners.map(q=>q.slice())};
+      if(S.editIdx>=0){ S.pages[S.editIdx]=pg; } else { S.pages.push(pg); }
+      S.editIdx=-1;
+      S.src=null; renderPages(); showHome();
+      setTimeout(()=>$("#pagesCard").scrollIntoView({behavior:"smooth",block:"start"}),60);
+    }catch(err){ showMsg("err","Erro ao processar a imagem: "+err.message); showHome(); }
+    busy(false); next();
+  },30);
+};
+
+function solve(A,b){ const n=b.length;
+  for(let i=0;i<n;i++){ let m=i; for(let r=i+1;r<n;r++) if(Math.abs(A[r][i])>Math.abs(A[m][i])) m=r;
+    [A[i],A[m]]=[A[m],A[i]]; [b[i],b[m]]=[b[m],b[i]];
+    for(let r=i+1;r<n;r++){ const f=A[r][i]/A[i][i]; for(let c=i;c<n;c++) A[r][c]-=f*A[i][c]; b[r]-=f*b[i]; } }
+  const x=new Array(n); for(let i=n-1;i>=0;i--){ let s=b[i]; for(let c=i+1;c<n;c++) s-=A[i][c]*x[c]; x[i]=s/A[i][i]; } return x; }
+function homog(from,to){ const A=[],b=[];
+  for(let i=0;i<4;i++){ const [x,y]=from[i],[u,v]=to[i];
+    A.push([x,y,1,0,0,0,-x*u,-y*u]); b.push(u);
+    A.push([0,0,0,x,y,1,-x*v,-y*v]); b.push(v); }
+  return solve(A,b); }
+function warp(src,q){
+  const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  let W=Math.max(d(q[0],q[1]),d(q[3],q[2])), H=Math.max(d(q[0],q[3]),d(q[1],q[2]));
+  const k=Math.min(1, 2000/Math.max(W,H)); W=Math.max(10,Math.round(W*k)); H=Math.max(10,Math.round(H*k));
+  const h=homog([[0,0],[W,0],[W,H],[0,H]], q);
+  const sw=src.width, sh=src.height;
+  const sd=src.getContext("2d").getImageData(0,0,sw,sh).data;
+  const out=document.createElement("canvas"); out.width=W; out.height=H;
+  const ox=out.getContext("2d"), od=ox.createImageData(W,H), o=od.data;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const z=h[6]*x+h[7]*y+1, u=(h[0]*x+h[1]*y+h[2])/z, v=(h[3]*x+h[4]*y+h[5])/z;
+      const x0=Math.floor(u), y0=Math.floor(v), fx=u-x0, fy=v-y0, oi=(y*W+x)*4;
+      if(x0<0||y0<0||x0>=sw-1||y0>=sh-1){ o[oi]=o[oi+1]=o[oi+2]=255; o[oi+3]=255; continue; }
+      const i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
+      for(let c=0;c<3;c++){
+        const a=sd[i00+c]+(sd[i10+c]-sd[i00+c])*fx, b=sd[i01+c]+(sd[i11+c]-sd[i01+c])*fx;
+        o[oi+c]=a+(b-a)*fy;
+      }
+      o[oi+3]=255;
+    }
+  }
+  ox.putImageData(od,0,0); return out;
+}
+
+function bgMap(g,w,h){
+  const f=12, sw=Math.ceil(w/f), sh=Math.ceil(h/f); let s=new Float32Array(sw*sh);
+  for(let by=0;by<sh;by++) for(let bx=0;bx<sw;bx++){ let m=0;
+    for(let y=by*f;y<Math.min(h,by*f+f);y+=2) for(let x=bx*f;x<Math.min(w,bx*f+f);x+=2){ const v=g[y*w+x]; if(v>m) m=v; }
+    s[by*sw+bx]=m; }
+  for(let pass=0;pass<3;pass++){ const t=new Float32Array(sw*sh);
+    for(let y=0;y<sh;y++) for(let x=0;x<sw;x++){ let a=0,n=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const xx=x+dx,yy=y+dy; if(xx<0||yy<0||xx>=sw||yy>=sh) continue; a+=s[yy*sw+xx]; n++; }
+      t[y*sw+x]=a/n; }
+    s=t; }
+  return {s,sw,sh,f};
+}
+function bgAt(B,x,y){ const fx=Math.min(B.sw-1.001,Math.max(0,x/B.f-.5)), fy=Math.min(B.sh-1.001,Math.max(0,y/B.f-.5));
+  const x0=fx|0,y0=fy|0,ax=fx-x0,ay=fy-y0,s=B.s,w=B.sw;
+  const x1=Math.min(B.sw-1,x0+1), y1=Math.min(B.sh-1,y0+1);
+  const a=s[y0*w+x0]+(s[y0*w+x1]-s[y0*w+x0])*ax, b=s[y1*w+x0]+(s[y1*w+x1]-s[y1*w+x0])*ax; return a+(b-a)*ay; }
+function applyFilter(cv,mode){
+  if(mode==="orig") return cv;
+  const w=cv.width,h=cv.height,x=cv.getContext("2d"),id=x.getImageData(0,0,w,h),d=id.data,n=w*h;
+  const g=new Float32Array(n); for(let i=0;i<n;i++) g[i]=d[i*4]*.299+d[i*4+1]*.587+d[i*4+2]*.114;
+  const B=bgMap(g,w,h);
+  const norm=new Float32Array(n); const hist=new Uint32Array(256);
+  for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ const i=y*w+xx; const bg=Math.max(40,bgAt(B,xx,y));
+    const v=Math.min(255,g[i]*255/bg); norm[i]=v; hist[v|0]++; }
+  let acc=0, lo=0; for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>n*0.01){lo=i;break;} }
+  lo=Math.min(lo,160);
+  for(let i=0;i<n;i++){
+    const bg=g[i]>0? norm[i]/Math.max(1,g[i]) : 1;
+    let v=(norm[i]-lo)*255/(250-lo); v=Math.max(0,Math.min(255,v));
+    if(mode==="doc"){ v = v>228?255: Math.pow(v/255,1.35)*255; d[i*4]=d[i*4+1]=d[i*4+2]=v; }
+    else if(mode==="bw"){ const b=v<175?0:255; d[i*4]=d[i*4+1]=d[i*4+2]=b; }
+    else {
+      const r=d[i*4]*bg, gg=d[i*4+1]*bg, bb=d[i*4+2]*bg, lift=v>232?1.15:1;
+      d[i*4]=Math.min(255,(r-lo)*255/(250-lo)*lift); d[i*4+1]=Math.min(255,(gg-lo)*255/(250-lo)*lift); d[i*4+2]=Math.min(255,(bb-lo)*255/(250-lo)*lift);
+    }
+  }
+  x.putImageData(id,0,0); return cv;
+}
+
+function renderPages(){
+  const el=$("#pages"); el.innerHTML="";
+  S.pages.forEach((p,i)=>{
+    const div=document.createElement("div"); div.className="pg";
+    div.innerHTML=`<img alt="Página ${i+1}" src="${p.thumb}"><span class="n">${i+1}</span><button class="x" aria-label="Remover página">×</button><button class="ed" aria-label="Ajustar recorte">✎</button>`;
+    div.querySelector(".ed").onclick=()=>{ S.src=p.src; S.corners=p.corners.map(q=>q.slice()); S.filter=p.filter; S.editIdx=i; showEditor(); };
+    div.querySelector(".x").onclick=()=>{ S.pages.splice(i,1); renderPages(); };
+    el.appendChild(div);
+  });
+  const add=document.createElement("button"); add.className="addPg"; add.textContent="+ Página"; add.onclick=()=>$("#cam").click();
+  if(S.pages.length) el.appendChild(add);
+  $("#pagesCard").style.display=S.pages.length?"block":"none";
+  $("#pagesTitle").textContent=S.pages.length===1?"1 página":S.pages.length+" páginas";
+  $("#camLabel").textContent=S.pages.length?"Adicionar página "+(S.pages.length+1):"Escanear documento";
+  $("#pagesHint").textContent = (S.pages.length===1 ? "O documento tem mais folhas? Toque em Próxima página. Se for só esta, escolha o tipo abaixo e envie." : "As "+S.pages.length+" folhas vão juntas num PDF só. Terminou? Escolha o tipo abaixo e envie.") + " O recorte é automático; se alguma folha ficar torta, toque no ✎ da miniatura.";
+  $("#saveBtn").disabled=!S.pages.length;
+  if(S.pages.length) hideMsg();
+}
+
+function buildPdf(quality, scale){
+  const { jsPDF } = window.jspdf;
+  let pdf=null;
+  S.pages.forEach((p,i)=>{
+    let c=p.canvas;
+    if(scale<1){ const t=document.createElement("canvas"); t.width=Math.round(c.width*scale); t.height=Math.round(c.height*scale); t.getContext("2d").drawImage(c,0,0,t.width,t.height); c=t; }
+    const wmm=210, hmm=210*c.height/c.width;
+    const orient = hmm>=wmm?"p":"l";
+    if(!pdf) pdf=new jsPDF({orientation:orient, unit:"mm", format:[wmm,hmm], compress:true});
+    else pdf.addPage([wmm,hmm], orient);
+    const q = p.filter==="color"||p.filter==="orig" ? quality : quality-0.05;
+    pdf.addImage(c.toDataURL("image/jpeg",q),"JPEG",0,0,wmm,hmm,undefined,"FAST");
+  });
+  return pdf.output("blob");
+}
+function toB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+function showMsg(kind,html){ const m=$("#msg"); m.className="msg show "+kind; m.innerHTML=html; }
+function hideMsg(){ $("#msg").className="msg"; }
+
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbxN8gZ7ao6p8Gu0CW9M-T9Lv7sDyKbESxeERpjCdS2p_HnXMaoijpxtgs4loJrnPviriA/exec";
+
+/* ---------- fila offline (IndexedDB) ---------- */
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("scandoc",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("fila",{keyPath:"id"});
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function filaAdd(item){ const db=await idb(); await new Promise((res,rej)=>{ const tx=db.transaction("fila","readwrite"); tx.objectStore("fila").put(item); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function filaAll(){ const db=await idb(); return new Promise((res,rej)=>{ const q=db.transaction("fila").objectStore("fila").getAll(); q.onsuccess=()=>res(q.result||[]); q.onerror=()=>rej(q.error); }); }
+async function filaDel(id){ const db=await idb(); return new Promise(res=>{ const tx=db.transaction("fila","readwrite"); tx.objectStore("fila").delete(id); tx.oncomplete=res; tx.onerror=res; }); }
+
+let flushing=false;
+async function flush(){
+  if(flushing) return 0; flushing=true; let sent=0;
+  try{
+    const items=await filaAll();
+    for(const it of items){
+      let j=null;
+      try{
+        const r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({pdf:it.pdf,nome:it.nome,tipo:it.tipo})});
+        j=await r.json();
+      }catch(e){ break; }
+      if(j && j.ok){
+        await filaDel(it.id); sent++;
+        const rec=LS.get("recent",[]); rec.unshift({name:it.nome, at:Date.now()}); LS.set("recent",rec.slice(0,15));
+      } else break;
+    }
+  }catch(e){}
+  flushing=false; await updFila(); renderRecent();
+  return sent;
+}
+async function updFila(){
+  let n=0; try{ n=(await filaAll()).length; }catch(e){}
+  const b=$("#filaBox");
+  if(!n){ b.style.display="none"; return; }
+  b.style.display="block";
+  b.innerHTML=`📥 <b>${n} documento${n>1?"s":""} aguardando internet.</b> ${n>1?"Serão enviados":"Será enviado"} automaticamente quando o sinal voltar.`;
+}
+function pedirSync(){ try{ navigator.serviceWorker && navigator.serviceWorker.ready.then(r=>r.sync && r.sync.register("envio")).catch(()=>{}); }catch(e){} }
+
+let saving=false;
+$("#saveBtn").onclick=async()=>{
+  if(saving||!S.pages.length) return;
+  if(!tipo){ showMsg("err","Escolha o tipo de documento: PT, APR, Checklist, DDS ou Outros."); return; }
+  if(!clean($("#who").value)){ showMsg("err","Preencha o seu nome antes de enviar."); $("#who").focus(); return; }
+  saving=true; $("#saveBtn").disabled=true; hideMsg();
+  const name=fileName(), t=tipo;
+  try{
+    busy(true,"Gerando PDF…"); await new Promise(r=>setTimeout(r,30));
+    let blob=buildPdf(.78,1);
+    if(blob.size>15e6) blob=buildPdf(.6,.75);
+    const b64=await toB64(blob);
+    const id=Date.now()+"-"+Math.random().toString(36).slice(2,8);
+    await filaAdd({id, pdf:b64, nome:name, tipo:t, at:Date.now()});
+    S.pages=[]; renderPages(); tipo=""; $("#title").value=""; updName();
+    busy(true,"Enviando…");
+    pedirSync();
+    let ok=false;
+    if(navigator.onLine!==false){ await flush(); ok=!(await filaAll()).some(x=>x.id===id); }
+    await updFila(); renderRecent();
+    const novo=`<button class="btn" id="newDocBtn">📷 Escanear novo documento</button>`;
+    if(ok) showMsg("ok",`✅ Enviado para a pasta <b>${esc(t)}</b>: <b>${esc(name)}</b>${novo}`);
+    else showMsg("info",`📥 Sem internet agora. O documento <b>${esc(name)}</b> ficou guardado no celular e será enviado <b>automaticamente</b> quando o sinal voltar.${novo}`);
+    $("#newDocBtn").onclick=()=>{ hideMsg(); window.scrollTo(0,0); $("#cam").click(); };
+    setTimeout(()=>$("#msg").scrollIntoView({behavior:"smooth",block:"center"}),60);
+  }catch(e){
+    showMsg("err","Não foi possível salvar o documento: "+esc((e&&e.message)||e));
+  }finally{ busy(false); saving=false; $("#saveBtn").disabled=!S.pages.length; }
+};
+function renderRecent(){
+  const rec=LS.get("recent",[]); const ul=$("#recent"); ul.innerHTML="";
+  rec.forEach(r=>{ const li=document.createElement("li"); const d=new Date(r.at);
+    li.innerHTML=`📄 ${esc(r.name)}<span>${d.toLocaleDateString("pt-BR")} ${pad(d.getHours())}:${pad(d.getMinutes())}</span>`;
+    ul.appendChild(li); });
+  $("#recentCard").style.display=rec.length?"block":"none";
+}
+renderRecent(); renderPages(); updFila();
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+  navigator.serviceWorker.addEventListener("message",e=>{ if(e.data==="fila-atualizada"){ updFila(); renderRecent(); } });
+}
+window.addEventListener("online",()=>flush());
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") flush(); });
+setInterval(()=>{ if(navigator.onLine!==false) flush(); },60000);
+flush();
+})();
+</script>
+</body>
+</html>
