@@ -1,13 +1,13 @@
 {
-  "name": "ScanDoc Teams",
-  "short_name": "ScanDoc Teams",
+  "name": "ScanDoc Offline",
+  "short_name": "ScanDoc Offline",
   "description": "Escaneie PT, APR, Checklist e DDS e envie para o OneDrive da equipe Cajuína.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1f5fbf",
-  "theme_color": "#1f5fbf",
+  "background_color": "#e8730c",
+  "theme_color": "#e8730c",
   "lang": "pt-BR",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
