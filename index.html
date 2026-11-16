@@ -384,21 +384,31 @@ function applyFilter(cv,mode){
   const w=cv.width,h=cv.height,x=cv.getContext("2d"),id=x.getImageData(0,0,w,h),d=id.data,n=w*h;
   const g=new Float32Array(n); for(let i=0;i<n;i++) g[i]=d[i*4]*.299+d[i*4+1]*.587+d[i*4+2]*.114;
   const B=bgMap(g,w,h);
-  const norm=new Float32Array(n); const hist=new Uint32Array(256);
-  for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ const i=y*w+xx; const bg=Math.max(40,bgAt(B,xx,y));
-    const v=Math.min(255,g[i]*255/bg); norm[i]=v; hist[v|0]++; }
-  let acc=0, lo=0; for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>n*0.01){lo=i;break;} }
-  lo=Math.min(lo,160);
-  for(let i=0;i<n;i++){
-    const bg=g[i]>0? norm[i]/Math.max(1,g[i]) : 1;
-    let v=(norm[i]-lo)*255/(250-lo); v=Math.max(0,Math.min(255,v));
-    if(mode==="doc"){ v = v>228?255: Math.pow(v/255,1.35)*255; d[i*4]=d[i*4+1]=d[i*4+2]=v; }
-    else if(mode==="bw"){ const b=v<175?0:255; d[i*4]=d[i*4+1]=d[i*4+2]=b; }
-    else {
-      const r=d[i*4]*bg, gg=d[i*4+1]*bg, bb=d[i*4+2]*bg, lift=v>232?1.15:1;
-      d[i*4]=Math.min(255,(r-lo)*255/(250-lo)*lift); d[i*4+1]=Math.min(255,(gg-lo)*255/(250-lo)*lift); d[i*4+2]=Math.min(255,(bb-lo)*255/(250-lo)*lift);
-    }
+  /* 1) tira sombra e iluminação desigual: divide cada pixel pelo brilho local do papel */
+  const L=new Float32Array(n);
+  for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ const i=y*w+xx, k=255/Math.max(60,bgAt(B,xx,y)), p=i*4;
+    d[p]=Math.min(255,d[p]*k); d[p+1]=Math.min(255,d[p+1]*k); d[p+2]=Math.min(255,d[p+2]*k);
+    L[i]=d[p]*.299+d[p+1]*.587+d[p+2]*.114; }
+  /* 2) ponto de preto pelo histograma */
+  const hist=new Uint32Array(256); for(let i=0;i<n;i++) hist[L[i]|0]++;
+  let acc=0, lo=0; for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>n*0.005){lo=i;break;} } lo=Math.min(lo,110);
+  const WHITE=212, KNEE=178;
+  /* 3) papel branco puro, tinta forte (curva de scanner) */
+  for(let i=0;i<n;i++){ const p=i*4, l=L[i];
+    let t=(l-lo)/(WHITE-lo); t=t<0?0:t>1?1:t;
+    let nl=255*Math.pow(t,1.7);
+    if(l>KNEE) nl+= (255-nl)*Math.min(1,(l-KNEE)/(WHITE-KNEE));
+    if(mode==="doc"){ d[p]=d[p+1]=d[p+2]=nl; continue; }
+    if(mode==="bw"){ const b=l<(lo+WHITE)/2+8?0:255; d[p]=d[p+1]=d[p+2]=b; continue; }
+    const s=l>1?nl/l:0, sat=l>=WHITE?0:1.4;
+    let R=d[p]*s, G=d[p+1]*s, Bc=d[p+2]*s; const m=(R+G+Bc)/3;
+    R=m+(R-m)*sat; G=m+(G-m)*sat; Bc=m+(Bc-m)*sat;
+    d[p]=R<0?0:R>255?255:R; d[p+1]=G<0?0:G>255?255:G; d[p+2]=Bc<0?0:Bc>255?255:Bc;
   }
+  /* 4) nitidez (letras mais definidas) */
+  if(mode!=="bw"){ const src=new Uint8ClampedArray(d), a=0.45, W4=w*4;
+    for(let y=1;y<h-1;y++) for(let xx=1;xx<w-1;xx++){ const p=(y*w+xx)*4;
+      for(let c=0;c<3;c++){ const v=src[p+c]*(1+4*a)-a*(src[p+c-4]+src[p+c+4]+src[p+c-W4]+src[p+c+W4]); d[p+c]=v; } } }
   x.putImageData(id,0,0); return cv;
 }
 
@@ -530,7 +540,7 @@ $("#saveBtn").onclick=async()=>{
   const name=fileName(), t=tipo;
   try{
     busy(true,"Gerando PDF…"); await new Promise(r=>setTimeout(r,30));
-    let blob=buildPdf(.78,1);
+    let blob=buildPdf(.85,1);
     if(blob.size>15e6) blob=buildPdf(.6,.75);
     const b64=await toB64(blob);
     const id=Date.now()+"-"+Math.random().toString(36).slice(2,8);
