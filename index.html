@@ -218,8 +218,7 @@ function openImage(file){
     c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k);
     c.getContext("2d").drawImage(img,0,0,c.width,c.height);
     URL.revokeObjectURL(url);
-    S.src=c; S.corners=detectCorners(c) || [[0,0],[c.width,0],[c.width,c.height],[0,c.height]];
-    S.editIdx=-1; busy(false); $("#okBtn").click();
+    const q=detectCornersEdge(c)||detectCorners(c); S.src=c; S.corners=q||defCorners(c); S.editIdx=-1; busy(false); if(q) $("#okBtn").click(); else showEditor();
   };
   img.onerror=()=>{ busy(false); showMsg("err","Não consegui abrir essa imagem."); };
   img.src=url;
@@ -259,6 +258,59 @@ function detectCorners(c){
     const area=Math.abs(polyArea(q))/(c.width*c.height);
     if(area<0.12) return null;
     return q;
+  }catch(e){ return null; }
+}
+/* detecção de bordas da folha, estilo CamScanner (gradiente + ajuste robusto de 4 retas) */
+function edgeQuad(d,w,h,F,MIN){ F=F||0.6; MIN=MIN||14;
+  const n=w*h, g=new Float32Array(n);
+  for(let i=0;i<n;i++) g[i]=d[i*4]*.299+d[i*4+1]*.587+d[i*4+2]*.114;
+  const b=new Float32Array(n);
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ let s=0; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) s+=g[(y+dy)*w+x+dx]; b[y*w+x]=s/9; }
+  const m=new Float32Array(n);
+  for(let y=2;y<h-2;y++) for(let x=2;x<w-2;x++){ const i=y*w+x;
+    const gx=b[i-w+1]+2*b[i+1]+b[i+w+1]-b[i-w-1]-2*b[i-1]-b[i+w-1];
+    const gy=b[i+w-1]+2*b[i+w]+b[i+w+1]-b[i-w-1]-2*b[i-w]-b[i-w+1];
+    m[i]=Math.hypot(gx,gy); }
+  const smp=[]; for(let i=0;i<n;i+=3) smp.push(m[i]); smp.sort((a,b)=>a-b);
+  const th=Math.max(MIN, smp[Math.floor(smp.length*0.90)]*F);
+  const P={t:[],b:[],l:[],r:[]}, M=3;
+  for(let x=M;x<w-M;x+=2){ for(let y=M;y<h*0.55;y++) if(m[y*w+x]>th){P.t.push([x,y]);break;}
+                           for(let y=h-M-1;y>h*0.45;y--) if(m[y*w+x]>th){P.b.push([x,y]);break;} }
+  for(let y=M;y<h-M;y+=2){ for(let x=M;x<w*0.55;x++) if(m[y*w+x]>th){P.l.push([x,y]);break;}
+                           for(let x=w-M-1;x>w*0.45;x--) if(m[y*w+x]>th){P.r.push([x,y]);break;} }
+  function fit(pts,horiz,total){
+    if(pts.length<8) return null; let best=null,bi=0;
+    for(let it=0;it<300;it++){ const p=pts[(Math.random()*pts.length)|0], q=pts[(Math.random()*pts.length)|0];
+      const dx=q[0]-p[0], dy=q[1]-p[1]; if(horiz? Math.abs(dx)<w*0.15 : Math.abs(dy)<h*0.15) continue;
+      if(horiz? Math.abs(dy)>Math.abs(dx)*0.6 : Math.abs(dx)>Math.abs(dy)*0.6) continue;
+      const L=Math.hypot(dx,dy), a=dy/L, c=-dx/L, e=-(a*p[0]+c*p[1]); let k=0;
+      for(const r of pts) if(Math.abs(a*r[0]+c*r[1]+e)<2.2) k++;
+      if(k>bi){bi=k;best=[a,c,e];} }
+    if(!best || bi<total*0.22) return null;
+    const inl=pts.filter(r=>Math.abs(best[0]*r[0]+best[1]*r[1]+best[2])<2.2);
+    let sx=0,sy=0,sxx=0,sxy=0; const N=inl.length;
+    for(const [x,y] of inl){ const u=horiz?x:y, v=horiz?y:x; sx+=u; sy+=v; sxx+=u*u; sxy+=u*v; }
+    const den=N*sxx-sx*sx; if(Math.abs(den)<1e-6) return null;
+    const A=(N*sxy-sx*sy)/den, B=(sy-A*sx)/N;
+    return {horiz,A,B,score:bi/total};
+  }
+  const T=fit(P.t,true,(w-2*M)/2), Bo=fit(P.b,true,(w-2*M)/2), Le=fit(P.l,false,(h-2*M)/2), Ri=fit(P.r,false,(h-2*M)/2);
+  if(!T||!Bo||!Le||!Ri) return null;
+  function cross(H,V){ const y=(H.A*V.B+H.B)/(1-H.A*V.A), x=V.A*y+V.B; return [x,y]; }
+  const q=[cross(T,Le),cross(T,Ri),cross(Bo,Ri),cross(Bo,Le)];
+  for(const [x,y] of q) if(x<-w*0.05||y<-h*0.05||x>w*1.05||y>h*1.05) return null;
+  let area=0; for(let i=0;i<4;i++){ const p=q[i],r=q[(i+1)%4]; area+=p[0]*r[1]-r[0]*p[1]; } area=Math.abs(area/2)/(w*h);
+  if(area<0.2) return null;
+  for(let i=0;i<4;i++){ const a=q[i],b=q[(i+1)%4],c=q[(i+2)%4]; if(((b[0]-a[0])*(c[1]-b[1])-(b[1]-a[1])*(c[0]-b[0]))<=0) return null; }
+  return q.map(([x,y])=>[Math.max(0,Math.min(w,x)),Math.max(0,Math.min(h,y))]);
+}
+function detectCornersEdge(c){
+  try{
+    const k=360/Math.max(c.width,c.height), w=Math.max(20,Math.round(c.width*k)), h=Math.max(20,Math.round(c.height*k));
+    const t=document.createElement("canvas"); t.width=w; t.height=h; const x=t.getContext("2d"); x.drawImage(c,0,0,w,h);
+    const d=x.getImageData(0,0,w,h).data;
+    const q=edgeQuad(d,w,h,0.35,8)||edgeQuad(d,w,h,0.6,14);
+    return q? q.map(p=>[p[0]/k,p[1]/k]) : null;
   }catch(e){ return null; }
 }
 function polyArea(q){ let a=0; for(let i=0;i<4;i++){ const p=q[i],n=q[(i+1)%4]; a+=p[0]*n[1]-n[0]*p[1]; } return a/2; }
