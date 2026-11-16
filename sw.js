@@ -1,5 +1,5 @@
 /* ScanDoc Offline — service worker: abre sem internet e envia a fila quando o sinal volta */
-const CACHE = "scandoc-offline-v8";
+const CACHE = "scandoc-offline-v9";
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbxN8gZ7ao6p8Gu0CW9M-T9Lv7sDyKbESxeERpjCdS2p_HnXMaoijpxtgs4loJrnPviriA/exec";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
