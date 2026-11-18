@@ -101,9 +101,11 @@
         </button>
         <div id="camLabel" style="font-weight:600">Escanear documento</div>
         <button class="link" id="galBtn">ou escolher foto da galeria</button>
+        <button class="link" id="extBtn">📄 ou anexar documento pronto do CamScanner (PDF ou imagem)</button>
       </div>
       <input type="file" id="cam" accept="image/*" capture="environment" hidden>
       <input type="file" id="gal" accept="image/*" multiple hidden>
+      <input type="file" id="ext" accept="application/pdf,image/*" multiple hidden>
     </div>
 
     <div class="card" id="pagesCard" style="display:none">
@@ -195,6 +197,32 @@ updName(); setInterval(updName, 30000);
 
 $("#camBtn").onclick=()=>$("#cam").click();
 $("#galBtn").onclick=()=>$("#gal").click();
+/* ---------- documento pronto (CamScanner): entra como veio, sem recorte nem filtro ---------- */
+$("#extBtn").onclick=()=>$("#ext").click();
+$("#ext").onchange=e=>{ const fs=[...e.target.files]; e.target.value=""; importExt(fs); };
+async function importExt(files){
+  for(const f of files){
+    if(/pdf/i.test(f.type)||/\.pdf$/i.test(f.name||"")){
+      if(f.size>18e6){ showMsg("err","Esse PDF é muito grande (máx. 18 MB)."); continue; }
+      busy(true,"Abrindo PDF…"); S.pdf={b64:await toB64(f), size:f.size, name:f.name||"documento.pdf"}; busy(false);
+    } else if(/^image\//.test(f.type)){
+      busy(true,"Abrindo imagem…");
+      await new Promise(res=>{ const u=URL.createObjectURL(f), img=new Image();
+        img.onload=()=>{ const MAX=2600, k=Math.min(1,MAX/Math.max(img.naturalWidth,img.naturalHeight)), c=document.createElement("canvas");
+          c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k); c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(u);
+          S.pages.push({canvas:c, filter:"orig", thumb:c.toDataURL("image/jpeg",.6), src:c, corners:[[0,0],[c.width,0],[c.width,c.height],[0,c.height]], ext:true}); res(); };
+        img.onerror=()=>{ URL.revokeObjectURL(u); res(); }; img.src=u; });
+      busy(false);
+    }
+  }
+  renderPages(); setTimeout(()=>$("#pagesCard").scrollIntoView({behavior:"smooth",block:"start"}),60);
+}
+(async()=>{ if(!/shared=1/.test(location.search)) return;
+  try{ const c=await caches.open("scandoc-shared"), ks=await c.keys(), fs=[];
+    for(const k of ks){ const r=await c.match(k); const b=await r.blob(); fs.push(new File([b], decodeURIComponent(r.headers.get("X-Name")||"documento"), {type:b.type||r.headers.get("Content-Type")||""})); await c.delete(k); }
+    history.replaceState(null,"",location.pathname); if(fs.length) await importExt(fs);
+  }catch(e){ showMsg("err","Não consegui abrir o arquivo compartilhado."); } })();
+
 $("#morePgBtn").onclick=()=>$("#cam").click();
 let clearArm=0;
 $("#clearBtn").onclick=()=>{ const b=$("#clearBtn");
@@ -507,6 +535,9 @@ function applyFilter(cv,mode){
 
 function renderPages(){
   const el=$("#pages"); el.innerHTML="";
+  if(S.pdf){ const div=document.createElement("div"); div.className="pg"; div.style.display="grid"; div.style.placeItems="center";
+    div.innerHTML=`<div style="text-align:center;font-size:12px;padding:6px">📄<br><b>PDF pronto</b><br>${Math.max(1,Math.round(S.pdf.size/1024))} KB</div><button class="x" aria-label="Remover PDF">×</button>`;
+    div.querySelector(".x").onclick=()=>{ S.pdf=null; renderPages(); }; el.appendChild(div); }
   S.pages.forEach((p,i)=>{
     const div=document.createElement("div"); div.className="pg";
     div.innerHTML=`<img alt="Página ${i+1}" src="${p.thumb}"><span class="n">${i+1}</span><button class="x" aria-label="Remover página">×</button><button class="ed" aria-label="Ajustar recorte">✎</button>`;
@@ -516,12 +547,14 @@ function renderPages(){
   });
   const add=document.createElement("button"); add.className="addPg"; add.textContent="+ Página"; add.onclick=()=>$("#cam").click();
   if(S.pages.length) el.appendChild(add);
-  $("#pagesCard").style.display=S.pages.length?"block":"none";
+  $("#pagesCard").style.display=(S.pages.length||S.pdf)?"block":"none";
   $("#pagesTitle").textContent=S.pages.length===1?"1 página":S.pages.length+" páginas";
   $("#camLabel").textContent=S.pages.length?"Adicionar página "+(S.pages.length+1):"Escanear documento";
   $("#pagesHint").textContent = (S.pages.length===1 ? "O documento tem mais folhas? Toque em Próxima página. Se for só esta, escolha o tipo abaixo e envie." : "As "+S.pages.length+" folhas vão juntas num PDF só. Terminou? Escolha o tipo abaixo e envie.") + " O recorte é automático; se alguma folha ficar torta, toque no ✎ da miniatura.";
+  if(S.pdf && !S.pages.length){ $("#pagesTitle").textContent="PDF do CamScanner"; $("#pagesHint").textContent="Vai do jeito que veio, sem mexer na imagem. Escolha o tipo abaixo e envie."; }
+  else if(S.pages.length && S.pages.every(p=>p.ext)) $("#pagesHint").textContent="Imagens prontas: vão do jeito que vieram, sem recorte nem filtro. Escolha o tipo abaixo e envie.";
   $("#saveBtn").disabled=false;
-  if(S.pages.length) hideMsg();
+  if(S.pages.length||S.pdf) hideMsg();
 }
 
 function buildPdf(quality, scale){
@@ -627,18 +660,19 @@ function somEnvio(){ try{
 let saving=false;
 $("#saveBtn").onclick=async()=>{
   if(saving) return;
-  const falta=[]; if(!S.pages.length) falta.push("a foto do documento (toque na câmera)"); if(!tipo) falta.push("o tipo: PT, APR, Checklist, DDS ou Outros"); if(!clean($("#who").value)) falta.push("o seu nome");
+  const falta=[]; if(!S.pages.length&&!S.pdf) falta.push("a foto do documento (toque na câmera)"); if(!tipo) falta.push("o tipo: PT, APR, Checklist, DDS ou Outros"); if(!clean($("#who").value)) falta.push("o seu nome");
+  if(S.pdf&&S.pages.length) falta.push("só um tipo de cada vez: remova o PDF (×) ou as fotos");
   if(falta.length){ showMsg("err","Para enviar, falta: "+falta.join("; ")+"."); setTimeout(()=>$("#msg").scrollIntoView({behavior:"smooth",block:"center"}),60); return; }
   saving=true; $("#saveBtn").disabled=true; hideMsg(); somEnvio();
   const name=fileName(), t=tipo;
   try{
     busy(true,"Gerando PDF…"); await new Promise(r=>setTimeout(r,30));
-    let blob=buildPdf(.85,1);
-    if(blob.size>15e6) blob=buildPdf(.6,.75);
-    const b64=await toB64(blob);
+    let b64;
+    if(S.pdf){ b64=S.pdf.b64; }
+    else { let blob=buildPdf(.85,1); if(blob.size>15e6) blob=buildPdf(.6,.75); b64=await toB64(blob); }
     const id=Date.now()+"-"+Math.random().toString(36).slice(2,8);
     await filaAdd({id, pdf:b64, nome:name, tipo:t, at:Date.now()});
-    S.pages=[]; renderPages(); tipo=""; $("#title").value=""; updName();
+    S.pages=[]; S.pdf=null; renderPages(); tipo=""; $("#title").value=""; updName();
     busy(true,"Enviando…");
     pedirSync();
     let ok=false;
