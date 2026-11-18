@@ -88,7 +88,7 @@
 <div class="wrap">
   <header>
     <div class="logo"><svg viewBox="60 60 392 392" width="30" height="30"><g fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="22" stroke-linecap="round"><path d="M86 150V112a26 26 0 0 1 26-26h38"/><path d="M362 86h38a26 26 0 0 1 26 26v38"/><path d="M426 362v38a26 26 0 0 1-26 26h-38"/><path d="M150 426h-38a26 26 0 0 1-26-26v-38"/></g><g fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round"><path d="M128 206H318a42 42 0 1 0-42-42"/><path d="M128 266H366a48 48 0 1 1-48 48"/><path d="M168 326H250a34 34 0 1 1-34 34"/></g></svg></div>
-    <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive · v16</small></div>
+    <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive · v17</small></div>
     <div class="netchip" id="netChip">✅ Pronto</div>
   </header>
 
@@ -100,6 +100,8 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>
         </button>
         <div id="camLabel" style="font-weight:600">Escanear documento</div>
+        <a class="btn" id="csBtn" href="intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.intsig.camscanner;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.intsig.camscanner;end" style="display:none;text-align:center;text-decoration:none;max-width:320px;padding:12px">📄 Escanear com o CamScanner</a>
+        <div class="hint" id="csHint" style="display:none;text-align:center;max-width:320px">No CamScanner, depois de escanear, toque em <b>Compartilhar → ScanDoc Offline</b>. O documento volta pronto para cá.</div>
         <button class="link" id="galBtn">ou escolher foto da galeria</button>
         <button class="link" id="extBtn">📄 ou anexar documento pronto do CamScanner (PDF ou imagem)</button>
       </div>
@@ -197,6 +199,7 @@ updName(); setInterval(updName, 30000);
 
 $("#camBtn").onclick=()=>$("#cam").click();
 $("#galBtn").onclick=()=>$("#gal").click();
+if(/Android/i.test(navigator.userAgent)){ $("#csBtn").style.display="block"; $("#csHint").style.display="block"; }
 /* ---------- documento pronto (CamScanner): entra como veio, sem recorte nem filtro ---------- */
 $("#extBtn").onclick=()=>$("#ext").click();
 $("#ext").onchange=e=>{ const fs=[...e.target.files]; e.target.value=""; importExt(fs); };
