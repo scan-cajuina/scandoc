@@ -88,7 +88,7 @@
 <div class="wrap">
   <header>
     <div class="logo"><svg viewBox="60 60 392 392" width="30" height="30"><g fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="22" stroke-linecap="round"><path d="M86 150V112a26 26 0 0 1 26-26h38"/><path d="M362 86h38a26 26 0 0 1 26 26v38"/><path d="M426 362v38a26 26 0 0 1-26 26h-38"/><path d="M150 426h-38a26 26 0 0 1-26-26v-38"/></g><g fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round"><path d="M128 206H318a42 42 0 1 0-42-42"/><path d="M128 266H366a48 48 0 1 1-48 48"/><path d="M168 326H250a34 34 0 1 1-34 34"/></g></svg></div>
-    <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive</small></div>
+    <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive · v13</small></div>
     <div class="netchip" id="netChip">✅ Pronto</div>
   </header>
 
@@ -144,7 +144,7 @@
       <div class="tools" id="filters">
         <button class="chip" data-f="doc">Documento</button>
         <button class="chip" data-f="bw">Preto e branco</button>
-        <button class="chip" data-f="color">Colorido</button>
+        <button class="chip" data-f="color">Scanner</button>
         <button class="chip" data-f="orig">Original</button>
       </div>
       <div class="row">
@@ -167,7 +167,7 @@ const LS = {
   get(k,d){ try{ const v = localStorage.getItem("scan_"+k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
   set(k,v){ try{ localStorage.setItem("scan_"+k, JSON.stringify(v)); }catch(e){} }
 };
-const S = { pages: [], src: null, corners: null, filter: LS.get("filter2","color") };
+const S = { pages: [], src: null, corners: null, filter: LS.get("filter3","color") };
 
 const CHIPS = ["PT","APR","Checklist","DDS","Outros"];
 let tipo = "";
@@ -435,7 +435,7 @@ ed.addEventListener("pointermove",e=>{
 ["pointerup","pointercancel"].forEach(t=>ed.addEventListener(t,()=>{ drag=-1; drawEd(); }));
 window.addEventListener("resize",()=>{ if($("#editor").style.display==="block") drawEd(); });
 
-$("#filters").onclick=e=>{ const f=e.target.dataset&&e.target.dataset.f; if(!f) return; S.filter=f; LS.set("filter2",f);
+$("#filters").onclick=e=>{ const f=e.target.dataset&&e.target.dataset.f; if(!f) return; S.filter=f; LS.set("filter3",f);
   [...$("#filters").children].forEach(b=>b.classList.toggle("on", b.dataset.f===f)); };
 $("#rotBtn").onclick=()=>{
   const s=S.src, c=document.createElement("canvas"); c.width=s.height; c.height=s.width;
