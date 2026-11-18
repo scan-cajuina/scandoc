@@ -1,5 +1,5 @@
 /* ScanDoc Offline — service worker: abre sem internet e envia a fila quando o sinal volta */
-const CACHE = "scandoc-offline-v11";
+const CACHE = "scandoc-offline-v12";
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbxN8gZ7ao6p8Gu0CW9M-T9Lv7sDyKbESxeERpjCdS2p_HnXMaoijpxtgs4loJrnPviriA/exec";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
@@ -16,6 +16,18 @@ self.addEventListener("activate", e => {
 });
 self.addEventListener("fetch", e => {
   const req = e.request;
+  if (req.method === "POST" && new URL(req.url).pathname.endsWith("/share-target")) {
+    e.respondWith((async () => {
+      try {
+        const fd = await req.formData(), files = fd.getAll("files").filter(f => f && f.size);
+        const c = await caches.open("scandoc-shared"); for (const k of await c.keys()) await c.delete(k);
+        let i = 0; for (const f of files) await c.put(new Request("./shared/" + (i++)), new Response(f, { headers: { "Content-Type": f.type || "application/octet-stream", "X-Name": encodeURIComponent(f.name || "documento") } }));
+      } catch (err) {}
+      return Response.redirect("./?shared=1", 303);
+    })());
+    return;
+  }
+
   if (req.method !== "GET") return;
   if (req.mode === "navigate") {
     e.respondWith(fetch(req).then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put("./index.html", cp)); return r; })
