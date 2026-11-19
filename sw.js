@@ -1,8 +1,9 @@
 /* ScanDoc Offline — service worker: abre sem internet e envia a fila quando o sinal volta */
-const CACHE = "scandoc-offline-v18";
+const CACHE = "scandoc-offline-v19";
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbxN8gZ7ao6p8Gu0CW9M-T9Lv7sDyKbESxeERpjCdS2p_HnXMaoijpxtgs4loJrnPviriA/exec";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
-  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
+  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(ASSETS.map(u =>
@@ -35,7 +36,7 @@ self.addEventListener("fetch", e => {
     return;
   }
   e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => {
-    if (r.ok && (req.url.startsWith(self.location.origin) || req.url.includes("cdnjs.cloudflare.com"))) {
+    if (r.ok && (req.url.startsWith(self.location.origin) || req.url.includes("cdnjs.cloudflare.com") || req.url.includes("cdn.jsdelivr.net"))) {
       const cp = r.clone(); caches.open(CACHE).then(c => c.put(req, cp));
     }
     return r;
