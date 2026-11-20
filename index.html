@@ -88,7 +88,7 @@
 <div class="wrap">
   <header>
     <div class="logo"><svg viewBox="60 60 392 392" width="30" height="30"><g fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="22" stroke-linecap="round"><path d="M86 150V112a26 26 0 0 1 26-26h38"/><path d="M362 86h38a26 26 0 0 1 26 26v38"/><path d="M426 362v38a26 26 0 0 1-26 26h-38"/><path d="M150 426h-38a26 26 0 0 1-26-26v-38"/></g><g fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round"><path d="M128 206H318a42 42 0 1 0-42-42"/><path d="M128 266H366a48 48 0 1 1-48 48"/><path d="M168 326H250a34 34 0 1 1-34 34"/></g></svg></div>
-    <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive · v19</small></div>
+    <div><h1>ScanDoc Offline</h1><small>Funciona sem internet · envia sozinho ao OneDrive · v20</small></div>
     <div class="netchip" id="netChip">✅ Pronto</div>
   </header>
 
@@ -232,6 +232,16 @@ $("#clearBtn").onclick=()=>{ const b=$("#clearBtn");
   clearArm=Date.now(); b.textContent="Toque de novo p/ confirmar";
   setTimeout(()=>{ b.textContent="🗑 Descartar tudo"; },3000); };
 $("#cam").onchange=e=>{ const f=e.target.files[0]; e.target.value=""; if(f) openImage(f); };
+/* ---------- app Android: usa o scanner do Google (recorte automático) ---------- */
+if(window.AndroidScan){
+  $("#cam").click=()=>{ try{ AndroidScan.scan(); }catch(e){ showMsg("err","Não consegui abrir o scanner."); } };
+  window.__nsBegin=()=>{ window.__nsBuf=[]; busy(true,"Recebendo documento…"); };
+  window.__nsChunk=p=>{ (window.__nsBuf=window.__nsBuf||[]).push(p); };
+  window.__nsEnd=(pages,size)=>{ busy(false); S.pages=[]; S.pdf={b64:(window.__nsBuf||[]).join(""), size:size, name:"scanner.pdf", pages:pages}; window.__nsBuf=null; renderPages(); hideMsg(); setTimeout(()=>$("#pagesCard").scrollIntoView({behavior:"smooth",block:"start"}),60); };
+  window.__nsCancel=()=>busy(false);
+  window.__nsError=m=>{ busy(false); showMsg("err","O scanner do Google não abriu: "+esc(m)); };
+}
+
 const queue=[];
 $("#gal").onchange=e=>{ queue.push(...e.target.files); e.target.value=""; next(); };
 function next(){ const f=queue.shift(); if(f) openImage(f); }
@@ -309,7 +319,7 @@ function loadCV(){ if(cvP) return cvP;
     }catch(e){ res(null); } };
     sc.onerror=()=>res(null); document.head.appendChild(sc); });
   return cvP; }
-setTimeout(loadCV,1500);
+if(!window.AndroidScan) setTimeout(loadCV,1500);
 async function detectCV(c){
   const cv=await Promise.race([loadCV(), new Promise(r=>setTimeout(()=>r(null),10000))]); if(!cv) return undefined;
   try{ const k=500/Math.max(c.width,c.height), t=document.createElement("canvas"); t.width=Math.round(c.width*k); t.height=Math.round(c.height*k);
@@ -628,7 +638,7 @@ function renderPages(){
   $("#pagesTitle").textContent=S.pages.length===1?"1 página":S.pages.length+" páginas";
   $("#camLabel").textContent=S.pages.length?"Adicionar página "+(S.pages.length+1):"Escanear documento";
   $("#pagesHint").textContent = (S.pages.length===1 ? "O documento tem mais folhas? Toque em Próxima página. Se for só esta, escolha o tipo abaixo e envie." : "As "+S.pages.length+" folhas vão juntas num PDF só. Terminou? Escolha o tipo abaixo e envie.") + " O recorte é automático; se alguma folha ficar torta, toque no ✎ da miniatura.";
-  if(S.pdf && !S.pages.length){ $("#pagesTitle").textContent="PDF do CamScanner"; $("#pagesHint").textContent="Vai do jeito que veio, sem mexer na imagem. Escolha o tipo abaixo e envie."; }
+  if(S.pdf && !S.pages.length){ $("#pagesTitle").textContent=window.AndroidScan?"Documento escaneado":"PDF do CamScanner"; $("#pagesHint").textContent="Vai do jeito que veio, sem mexer na imagem. Escolha o tipo abaixo e envie."; }
   else if(S.pages.length && S.pages.every(p=>p.ext)) $("#pagesHint").textContent="Imagens prontas: vão do jeito que vieram, sem recorte nem filtro. Escolha o tipo abaixo e envie.";
   $("#saveBtn").disabled=false;
   if(S.pages.length||S.pdf) hideMsg();
